@@ -6,11 +6,11 @@ import eu.ibagroup.easyrpa.openframework.googlesheets.exceptions.CopySheetExcept
 import eu.ibagroup.easyrpa.openframework.googlesheets.exceptions.SheetNameAlreadyExist;
 import eu.ibagroup.easyrpa.openframework.googlesheets.exceptions.SheetNotFound;
 import eu.ibagroup.easyrpa.openframework.googlesheets.exceptions.UpdateException;
-import eu.ibagroup.easyrpa.openframework.googlesheets.internal.GSheetElementsCache;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class Spreadsheet {
@@ -30,6 +30,13 @@ public class Spreadsheet {
         requests = new ArrayList<>();
     }
 
+    public Optional<SheetDK> getSheetDk(String title) {
+        return googleSpreadsheet.getSheets().stream()
+                .filter(sheet -> sheet.getProperties().getTitle().equals(title))
+                .findFirst()
+                .map(sheet -> new SheetDK(googleSpreadsheet.getSpreadsheetId(), sheet, service));
+    }
+
     public String getId() {
         return googleSpreadsheet.getSpreadsheetId();
     }
@@ -42,7 +49,7 @@ public class Spreadsheet {
     }
 
     public Sheet getActiveSheet() {
-        return new Sheet( this,activeSheetIndex);
+        return new Sheet(this, activeSheetIndex);
     }
 
     public Sheet selectSheet(String name) {
@@ -50,7 +57,7 @@ public class Spreadsheet {
         for (int i = 0; i < list.size(); i++) {
             if (name.equals(list.get(i).getProperties().getTitle())) {
                 activeSheetIndex = i;
-                return new Sheet( this,activeSheetIndex);
+                return new Sheet(this, activeSheetIndex);
             }
         }
         throw new SheetNotFound("Sheet with this name wasn't found");
@@ -61,17 +68,17 @@ public class Spreadsheet {
             throw new SheetNotFound("Incorrect sheet id");
         }
         activeSheetIndex = index;
-        return new Sheet(this,activeSheetIndex);
+        return new Sheet(this, activeSheetIndex);
     }
 
-    public Sheet getSheetAt(int index){
+    public Sheet getSheetAt(int index) {
         if (index < 0 || googleSpreadsheet.getSheets().size() <= index) {
             throw new SheetNotFound("Incorrect sheet id");
         }
-        return new Sheet( this);
+        return new Sheet(this);
     }
 
-    public com.google.api.services.sheets.v4.model.Sheet getGSheetAt(int index){
+    public com.google.api.services.sheets.v4.model.Sheet getGSheetAt(int index) {
         if (index < 0 || googleSpreadsheet.getSheets().size() <= index) {
             throw new SheetNotFound("Incorrect sheet id");
         }
@@ -120,7 +127,7 @@ public class Spreadsheet {
                 .getProperties();
 
         sheet.setProperties(properties);
-        return new Sheet( this,newSheetIndex);
+        return new Sheet(this, newSheetIndex);
     }
 
     public void removeSheet(String sheetName) {

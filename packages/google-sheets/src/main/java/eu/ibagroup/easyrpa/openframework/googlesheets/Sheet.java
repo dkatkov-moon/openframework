@@ -7,15 +7,12 @@ import eu.ibagroup.easyrpa.openframework.googlesheets.exceptions.SheetNameAlread
 import eu.ibagroup.easyrpa.openframework.googlesheets.internal.GSheetElementsCache;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Sheet implements Iterable<Row> {
 
-    private Spreadsheet parentSpreadsheet;
+    private final Spreadsheet parentSpreadsheet;
 
     private int sheetIndex;
 
@@ -131,7 +128,7 @@ public class Sheet implements Iterable<Row> {
     }
 
     public List<List<Object>> getValues() {
-        return getRange(getFirstRowIndex(), getFirstColumnIndex(), getLastRowIndex(), getLastColumnIndex());
+        return getRange(getFirstRowIndex(), 0, getLastRowIndex(), getLastColumnIndex());
     }
 
     public void setValues(List<List<?>> values) {
@@ -197,7 +194,7 @@ public class Sheet implements Iterable<Row> {
     public Row getRow(int rowIndex) {
         if (rowIndex >= 0) {
             List<RowData> rowData = getGSheet().getData().get(0).getRowData();
-            if(rowData != null) {
+            if(rowData != null && rowData.size() > rowIndex) {
                 RowData row = rowData.get(rowIndex);
                 return row != null ? new Row(this, rowIndex) : null;
             }
@@ -236,8 +233,14 @@ public class Sheet implements Iterable<Row> {
     }
 
     public Row createRow(int rowIndex) {
-        //TODO investigate how to create Row if getGSheet().getData().get(0).getRowData() returns null
-        getGSheet().getData().get(0).getRowData().add(rowIndex, new RowData());
+        List<GridData> gridDataList = getGSheet().getData();
+        if (!gridDataList.isEmpty()) {
+            GridData gridData = gridDataList.get(0);
+            if (Objects.isNull(gridData.getRowData())) {
+                gridData.setRowData(new ArrayList<>());
+            }
+            gridData.getRowData().add(rowIndex, new RowData());
+        }
         return new Row(this, rowIndex);
     }
 
@@ -307,10 +310,13 @@ public class Sheet implements Iterable<Row> {
         return getGSheet().getData().get(0).getStartRow();
     }
 
-    //is this correct?
     public int getLastRowIndex() {
-        GridData data = getGSheet().getData().get(0);
-        return data.getStartRow() + data.getRowData().size() - 1;
+        List<GridData> gridData = getGSheet().getData();
+        if (gridData.size() > 0) {
+            return gridData.get(0).getRowData().size();
+        } else {
+            return -1;
+        }
     }
 
     public Column getColumn(String colRef) {
@@ -430,38 +436,45 @@ public class Sheet implements Iterable<Row> {
         // why *256 getGSheet().setColumnWidth(columnIndex, width * 256);
     }
 
-    public int getFirstColumnIndex() {
-        com.google.api.services.sheets.v4.model.Sheet sheet = getGSheet();
-        int firstColIndex = -1;
-        int firstRowNum = sheet.getData().get(0).getStartRow();
-        if (firstRowNum >= 0) {
-            firstColIndex = Integer.MAX_VALUE;
-            for (RowData row : sheet.getData().get(0).getRowData()) {
-                // ?? firstColIndex = Math.min(firstColIndex, row.getFirstCellNum());
-            }
-        }
-        return sheet.getData().get(0).getStartColumn();
-        //return firstColIndex;
-    }
-
     public int getLastColumnIndex() {
-        com.google.api.services.sheets.v4.model.Sheet sheet = getGSheet();
-        int lastColIndex = -1;
-        int firstRowNum = sheet.getData().get(0).getStartRow();
-        int firstColIndex = sheet.getData().get(0).getStartColumn();
-        if (firstRowNum >= 0) {
-            for (RowData row : sheet.getData().get(0).getRowData()) {
-                //?? getlastrow index return last el?
-                lastColIndex = Math.max(lastColIndex, firstColIndex + row.size() - 1);
-            }
+        List<GridData> gridData = getGSheet().getData();
+        if (gridData.size() > 0) {
+            return gridData.get(0).getRowData().stream()
+                    .map(rowData -> rowData.getValues().size())
+                    .max(Comparator.naturalOrder()).orElse(0);
+        } else {
+            return 0;
         }
-        return lastColIndex;
     }
 
-//    public <T> org.apache.poi.ss.usermodel.Table<T> getTable(String topLeftCellRef, Class<T> recordType) {
-//        CellRef ref = new CellRef(topLeftCellRef);
-//        return getTable(ref.getRow(), ref.getCol(), recordType);
-//    }
+    /**
+     * Gets table located at this sheet.
+     *
+     * @param topLeftCellRef reference string to the top-left cell of table header. E.g. "A23".
+     * @param recordType     class instance of records that this table works with.
+     * @param <T>            class type of records that this table works with. Defined by value of
+     *                       <code>recordType</code>.
+     * @return object representing corresponding table.
+     */
+    public <T> Table<T> getTable(String topLeftCellRef, Class<T> recordType) {
+        CellRef ref = new CellRef(topLeftCellRef);
+        return getTable(ref.getRow(), ref.getCol(), recordType);
+    }
+
+    /**
+     * Gets table located at this sheet.
+     *
+     * @param headerTopRow  0-based index of table header top row.
+     * @param headerLeftCol 0-based index of table left column.
+     * @param recordType    class instance of records that this table works with.
+     * @param <T>           class type of records that this table works with. Defined by value of
+     *                      <code>recordType</code>.
+     * @return object representing corresponding table.
+     */
+    public <T> Table<T> getTable(int headerTopRow, int headerLeftCol, Class<T> recordType) {
+        return new Table<>(this, headerTopRow, headerLeftCol, headerTopRow, getLastColumnIndex() - 1, recordType);
+    }
+
 //
 //    public <T> org.apache.poi.ss.usermodel.Table<T> getTable(int headerTopRow, int headerLeftCol, Class<T> recordType) {
 //        return new org.apache.poi.ss.usermodel.Table<T>(this, headerTopRow, headerLeftCol, headerTopRow, getLastColumnIndex(), recordType);

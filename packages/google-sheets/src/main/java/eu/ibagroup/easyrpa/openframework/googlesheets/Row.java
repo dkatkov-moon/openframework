@@ -8,6 +8,7 @@ import eu.ibagroup.easyrpa.openframework.googlesheets.internal.GSheetElementsCac
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 public class Row implements Iterable<Cell> {
 
@@ -160,7 +161,12 @@ public class Row implements Iterable<Cell> {
     }
 
     public Cell getCell(int colIndex) {
-        if (colIndex >= 0 && colIndex < getGSheetRow().getValues().size()) {
+        int cellCount = 0;
+        List<CellData> cellDataList = getGSheetRow().getValues();
+        if (Objects.nonNull(cellDataList)) {
+            cellCount = cellDataList.size();
+        }
+        if (colIndex >= 0 && colIndex < cellCount) {
             CellData cell = getGSheetRow().getValues().get(colIndex);
             return cell != null ? new Cell(parent, rowIndex, colIndex) : null;
         }

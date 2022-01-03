@@ -23,6 +23,8 @@ import eu.ibagroup.easyrpa.openframework.googlesheets.internal.GSheetElementsCac
 
 import javax.inject.Inject;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +52,21 @@ public class GoogleSheets {
     public GoogleSheets(RPAServicesAccessor rpaServices) {
         this.credString = rpaServices.getSecret("google.credentials", String.class);
         connect();
+    }
+
+    public GoogleSheets(File token, Path credentials) throws GeneralSecurityException, IOException {
+        GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(Files.newInputStream(credentials)));
+        HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
+        // Build flow and trigger user authorization request.
+        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
+                HTTP_TRANSPORT, JSON_FACTORY, clientSecrets, SCOPES)
+                .setDataStoreFactory(new FileDataStoreFactory(token))
+                .setAccessType("offline")
+                .build();
+        LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
+        Credential credential =  new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
+        service = new Sheets.Builder(HTTP_TRANSPORT, JSON_FACTORY, credential)
+                .build();
     }
 
     public GoogleSheets() {

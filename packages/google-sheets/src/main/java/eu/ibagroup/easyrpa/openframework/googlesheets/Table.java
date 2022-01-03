@@ -11,26 +11,74 @@ import java.util.stream.Collectors;
 //TODO implement multi line header support. Currently only one line header is supported.
 public class Table<T> implements Iterable<T> {
 
-    private Sheet parent;
+    /**
+     * Reference to parent sheet.
+     */
+    private final Sheet parent;
 
+    /**
+     * Index of the header top row.
+     */
     private int hTopRow;
+
+    /**
+     * Index of the header left column.
+     */
     private int hLeftCol;
+
+    /**
+     * Index of the header bottom row.
+     */
     private int hBottomRow;
+
+    /**
+     * Index of the header right column.
+     */
     private int hRightCol;
 
+    /**
+     * Index of the last row of this table.
+     */
     private int bottomRow = -1;
 
+    /**
+     * Cached map that maps column titles to its 0-based ordering number.
+     */
     private Map<String, Integer> columnNameToIndexMap;
+
+    /**
+     * Cached list of table records.
+     */
     private List<T> records;
 
+    /**
+     * Helper that converts records to corresponding row data and vice versa. Also it's responsible for providing
+     * contained in record type meta information that necessary to build the table or its rows.
+     */
     private RecordTypeHelper<T> typeHelper;
 
+    /**
+     * Builds a new table on the given sheet at position defined by <code>topRow</code> and <code>leftCol</code>
+     * (top-left cell of the table).
+     *
+     * @param parent  parent sheet where the table should be placed.
+     * @param topRow  0-based index of row that defines top-left cell of the table.
+     * @param leftCol 0-based index of column that defines top-left cell of the table.
+     * @param records list of records to insert into the table after creation. Also this list provides information
+     *                about type of records with meta-information is necessary for table construction.
+     *                That's why this list should not be empty.
+     */
     @SuppressWarnings("unchecked")
     protected Table(Sheet parent, int topRow, int leftCol, List<T> records) throws IOException {
         this.parent = parent;
         if (records != null && records.size() > 0) {
             this.typeHelper = RecordTypeHelper.getFor((Class<T>) records.get(0).getClass());
             buildTable(topRow, leftCol, records);
+        } else {
+            this.hTopRow = topRow;
+            this.hLeftCol = leftCol;
+            this.hBottomRow = topRow;
+            this.hRightCol = parent.getLastColumnIndex();
         }
     }
 
@@ -58,46 +106,99 @@ public class Table<T> implements Iterable<T> {
 //        return parent.getDocument();
 //    }
 
+    /**
+     * Gets parent sheet.
+     *
+     * @return parent Excel document.
+     */
     public Sheet getSheet() {
         return parent;
     }
 
+    /**
+     * Gets index of the top row of this table header.
+     *
+     * @return 0-based index of the top row of this table header.
+     */
     public int getHeaderTopRow() {
         return hTopRow;
     }
 
+    /**
+     * Sets new index of the top row of this table header.
+     *
+     * @param topRowIndex the new index of the top row to set.
+     */
     public void setHeaderTopRow(int topRowIndex) {
         this.hTopRow = topRowIndex;
         columnNameToIndexMap = null;
     }
 
+    /**
+     * Gets index of the left column of this table header.
+     *
+     * @return 0-based index of the left column  of this table header.
+     */
     public int getHeaderLeftCol() {
         return hLeftCol;
     }
 
+    /**
+     * Sets new index of the left column of this table header.
+     *
+     * @param leftColIndex the new index of the left column to set.
+     */
     public void setHeaderLeftCol(int leftColIndex) {
         this.hLeftCol = leftColIndex;
         columnNameToIndexMap = null;
     }
 
+    /**
+     * Gets index of the bottom row of this table header.
+     *
+     * @return 0-based index of the bottom row of this table header.
+     */
     public int getHeaderBottomRow() {
         return hBottomRow;
     }
 
+    /**
+     * Sets new index of the bottom row of this table header.
+     *
+     * @param bottomRowIndex the new index of the bottom row to set.
+     */
     public void setHeaderBottomRow(int bottomRowIndex) {
         this.hBottomRow = bottomRowIndex;
         columnNameToIndexMap = null;
     }
 
+    /**
+     * Gets index of the right column of this table header.
+     *
+     * @return 0-based index of the right column  of this table header.
+     */
     public int getHeaderRightCol() {
         return hRightCol;
     }
 
+    /**
+     * Sets new index of the right column of this table header.
+     *
+     * @param rightColIndex the new index of the right column to set.
+     */
     public void setHeaderRightCol(int rightColIndex) {
         this.hRightCol = rightColIndex;
         columnNameToIndexMap = null;
     }
 
+    /**
+     * Gets index of the last row of this table.
+     * <p>
+     * If the bottom row is not specified explicitly this method returns the actual index of the last row
+     * of parent sheet.
+     *
+     * @return an actual index of the last row of this table.
+     */
     public int getBottomRow() {
         if (bottomRow < 0) {
             return parent.getLastRowIndex();
@@ -105,10 +206,25 @@ public class Table<T> implements Iterable<T> {
         return bottomRow;
     }
 
+    /**
+     * Sets index of the last row of this table explicitly.
+     * <p>
+     * It's necessary to use when the table ends earlier than the last row of the parent sheet. Once this bottom row
+     * index is specified it will be automatically corrected during adding, inserting or removing records.
+     *
+     * @param bottomRowIndex 0-based index of the row that should be the last row of this table.
+     */
     public void setBottomRow(int bottomRowIndex) {
         this.bottomRow = bottomRowIndex;
     }
 
+    /**
+     * Gets map that maps column titles to its ordering number (0-based).
+     * <p>
+     * It's necessary to properly map table records to corresponding row data and vice versa.
+     *
+     * @return map that maps column titles to its ordering number.
+     */
     public Map<String, Integer> getColumnNameToIndexMap() throws IOException {
         if (columnNameToIndexMap == null) {
             this.columnNameToIndexMap = getColumnNameToIndexMap(this.hTopRow, this.hLeftCol, this.hRightCol);
@@ -116,6 +232,11 @@ public class Table<T> implements Iterable<T> {
         return columnNameToIndexMap;
     }
 
+    /**
+     * Gets full list of records that are contained in this table.
+     *
+     * @return list of table records.
+     */
     public List<T> getRecords() throws IOException {
         if (records == null) {
             Map<String, Integer> columnsIndexMap = getColumnNameToIndexMap();
@@ -134,6 +255,14 @@ public class Table<T> implements Iterable<T> {
         return new ArrayList<>(records);
     }
 
+    /**
+     * Gets specific record by its index.
+     * <p>
+     * Records are indexed starting with the row right below the header bottom row.
+     *
+     * @param index 0-based index of the record to get.
+     * @return instance of corresponding record or <code>null</code> if record at such index is not exist.
+     */
     public T getRecord(int index) throws IOException {
         int recordsCount = getRecordsCount();
         if (index < 0 || index >= recordsCount) {
